@@ -34,7 +34,7 @@ class SignalProcess(object):
             filtered_signal.append(output_signal)
 
         filtered_signal = np.asarray(filtered_signal)
-        print(filtered_signal.shape)
+        # print(filtered_signal.shape) # (8, 2048)
         return filtered_signal
 
     def signal_plotter(self):
@@ -48,5 +48,26 @@ class SignalProcess(object):
             plt.plot(x_axis, i)
             plt.show()
 
+    def differential_emg(self):
+        diff_emgs = []
+        for i, k in enumerate(self.filter_signal()):
+            # print(i.shape)
+            print(k.shape)
+            # for j in k:
+        return diff_emgs
+
+    def find_amp(self):
+        list_vals = list(self.differential_emg())
+        amp_values = []
+        for i in list_vals:
+            amp_values.append(max(i))
+        return amp_values
+
+    def mean_amp(self):
+        est_means = []
+        est_means.append(np.mean(self.find_amp()))
+        return est_means
+
 x = SignalProcess(dataFrame)
-x.signal_plotter()
+# x.signal_plotter()
+x.differential_emg()
