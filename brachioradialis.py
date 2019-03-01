@@ -49,12 +49,15 @@ class SignalProcess(object):
             plt.show()
 
     def differential_emg(self):
-        diff_emgs = []
-        for i, k in enumerate(self.filter_signal()):
-            # print(i.shape)
-            print(k.shape)
-            # for j in k:
-        return diff_emgs
+        return -np.diff(self.filter_signal(), axis=0)
+        # return result.shape
+        # result = [(i-j) for (i, j) in zip(*self.filter_signal())]
+        # return np.subtract(self.filter_signal() + 1, self.filter_signal())
+        # diff_emgs = []
+        # for i, k in enumerate(self.filter_signal()):
+        #     for j in k:
+        #         return (j[i+1] - j[i])
+
 
     def find_amp(self):
         list_vals = list(self.differential_emg())
@@ -69,5 +72,4 @@ class SignalProcess(object):
         return est_means
 
 x = SignalProcess(dataFrame)
-# x.signal_plotter()
-x.differential_emg()
+print(x.mean_amp())
