@@ -23,19 +23,57 @@ class SignalProcess(object):
         x = rescaled_values.reshape(8, 2048)
         return x
 
+    # def freq_dom(self):
+    #     fourier_list = []
+    #     for i in self.matched_linear_filter():
+    #         fourier_list.append(np.fft.fft(i))
+    #     fourier_list = np.asarray(fourier_list)
+    #     return fourier_list
+
+    def rms_val(self):
+        filtered_vals = []
+        for i in self.differential_emg():
+            rms = np.sqrt(np.mean(i)**2)
+            filtered_vals.append(rms)
+        return filtered_vals
+
+    def white_noise(self):
+        # mu_list = []
+        # for i in self.scaled_vals():
+        #     mu, sigma = np.mean(i), np.std(i)
+        #     mu_list.append(np.random.normal(mu, sigma, 20))
+        # # mu, sigma = np.mean(self.scaled_vals()), np.std(self.scaled_vals())
+        # return mu_list
+        return np.random.normal(2*self.scaled_vals() + 2, 15)
+        white_noise_list = []
+        for i in self.scaled_vals():
+            mu = np.mean(i)
+            sigma = np.std(i)
+            print(mu, sigma)
+            white_noise_list.append(np.random.normal(mu, sigma, 2048))
+        return white_noise_list
+
     def filter_signal(self):
         # set order and threshold of butterworth signal
         b, a = signal.butter(4, 0.2, 'low')
 
         # create the filtered signal
         filtered_signal = []
-        for i in self.scaled_vals():
+        for i in self.white_noise():
             output_signal = signal.filtfilt(b, a, i)
             filtered_signal.append(output_signal)
 
         filtered_signal = np.asarray(filtered_signal)
         # print(filtered_signal.shape) # (8, 2048)
         return filtered_signal
+
+    def matched_linear_filter(self):
+        linear_filter_vals = []
+        for i in self.filter_signal():
+            corr = signal.correlate(i, np.ones(128), mode='same') / 128
+            linear_filter_vals.append(corr)
+        return linear_filter_vals
+
 
     def signal_plotter(self):
         x_axis = []
@@ -44,32 +82,28 @@ class SignalProcess(object):
             x_axis.append(x_vals)
             x_vals = x_vals + 0.029
 
-        for i in self.filter_signal():
-            plt.plot(x_axis, i)
-            plt.show()
+        for i, k in enumerate(self.matched_linear_filter()):
+            plt.subplot(8, 1, i+1)
+            plt.plot(x_axis, k, label=i)
+            plt.legend()
+            plt.xlabel('time (seconds)')
+            # plt.xlabel('frequency (hertz)')
+            plt.ylabel('voltage (millivolts)')
+        # plt.tight_layout()
+        plt.show()
+
 
     def differential_emg(self):
-        return -np.diff(self.filter_signal(), axis=0)
-        # return result.shape
-        # result = [(i-j) for (i, j) in zip(*self.filter_signal())]
-        # return np.subtract(self.filter_signal() + 1, self.filter_signal())
-        # diff_emgs = []
-        # for i, k in enumerate(self.filter_signal()):
-        #     for j in k:
-        #         return (j[i+1] - j[i])
+        return -np.diff(self.matched_linear_filter(), axis=0)
 
 
-    def find_amp(self):
-        list_vals = list(self.differential_emg())
-        amp_values = []
-        for i in list_vals:
-            amp_values.append(max(i))
-        return amp_values
+    def sqrt_vals(self):
+        rms_list = []
+        for i in self.rms_val():
+            rms_list.append(np.sqrt(i))
+        return rms_list
 
-    def mean_amp(self):
-        est_means = []
-        est_means.append(np.mean(self.find_amp()))
-        return est_means
 
 x = SignalProcess(dataFrame)
-print(x.mean_amp())
+x.signal_plotter()
+print(x.sqrt_vals())
