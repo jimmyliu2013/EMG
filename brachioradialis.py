@@ -85,16 +85,16 @@ class SignalProcess(object):
         for i, k in enumerate(self.matched_linear_filter()):
             plt.subplot(8, 1, i+1)
             plt.plot(x_axis, k, label=i)
-            plt.legend()
-            plt.xlabel('time (seconds)')
-            # plt.xlabel('frequency (hertz)')
-            plt.ylabel('voltage (millivolts)')
+        plt.legend()
+        plt.xlabel('time (milliseconds)')
+        # plt.xlabel('frequency (hertz)')
+        plt.ylabel('voltage (millivolts)')
         # plt.tight_layout()
         plt.show()
 
 
     def differential_emg(self):
-        return -np.diff(self.matched_linear_filter(), axis=0)
+        return -np.diff(self.scaled_vals(), axis=0)
 
 
     def sqrt_vals(self):
@@ -106,4 +106,7 @@ class SignalProcess(object):
 
 x = SignalProcess(dataFrame)
 x.signal_plotter()
+# print(x.rms_val())
 print(x.sqrt_vals())
+print(np.mean(x.sqrt_vals()))
+# print(x.differential_emg())
