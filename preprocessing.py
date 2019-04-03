@@ -22,6 +22,8 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 from statsmodels.sandbox.regression.kernridgeregress_class import plt_closeall
 from astropy.visualization.hist import hist
 from sqlalchemy.sql.expression import false
+from sklearn.metrics import confusion_matrix
+from sklearn.ensemble import RandomForestClassifier
 
 ROOT_DIR = "C:/Users/Administrator/Desktop/elec811/project/"
 PROCESSED_DIR = ROOT_DIR + "Processed/"
@@ -29,40 +31,69 @@ FIG_DIR = ROOT_DIR + "Figures/"
 
 HEADER = ["BB-EMG", "TB-EMG", "BR-EMG", "AD-EMG", "LES-EMG", "TES-EMG", "Hand-switch", "Box-switch", "Motion-sensor1", "Motion-sensor2", "Motion-sensor3", "Motion-sensor4", "Motion-sensor5", "Motion-sensor6"]
 
-DO_PLOT = True
-SUBJECT_TO_PLOT = 1
-TRIAL_TO_PLOT = 1
-LOAD_TO_PLOT = 0
+DO_PLOT = False
+SUBJECT_TO_PLOT = 3
+TRIAL_TO_PLOT = 3
+LOAD_TO_PLOT = 10
 
 SAMPLING_FREQUENCY = 1000
 
-FEATURE_WINDOW_SIZE = 200  # 200ms
+FEATURE_WINDOW_SIZE = 200
 OVERLAP = 0.5  # 50% overlapping sliding window
 
 BUTTERWORTH_ORDER = 4
 BANDPASS_LOW_CUTTING_FREQUENCY = 20
 BANDPASS_HIGH_CUTTING_FREQUENCY = 490
 
-MIN_LENGTH_TO_LABEL = 500  # only label the consecutive box switch signal longer than 500ms, remove the shaking (usually at start and end)
+MIN_LENGTH_TO_LABEL = 1000  # only label the consecutive box switch signal longer than 500ms, remove the shaking (usually at start and end)
 
 
 # extract features from sliding window here
 def calculate_features_for_each_column(column_data):
+    column_data.reset_index(drop=True, inplace=True)
     rms = np.sqrt(np.mean(column_data ** 2))
-#     mean = column_data.mean()
-#     max = column_data.max()
-#     min = column_data.min()
-#     med = column_data.median()
-#     skew = column_data.skew()
-#     kurt = column_data.kurt()
-#     std = column_data.std()
-    # iqr = column_data.quantile(.75) - column_data.quantile(.25)
-#     energy = scipy.sum(abs(column_data) ** 2) / FEATURE_WINDOW_SIZE
-#     f, p = scipy.signal.periodogram(column_data, 50)
-#     mean_fre = scipy.sum(f * p) / scipy.sum(p)
-    # max_energy_fre = np.asscalar(f[pd.DataFrame(p).idxmax()])
-    # median_fre = weighted_median(f, p)
-    return [rms]
+    mean = column_data.mean()
+    max = column_data.max()
+    min = column_data.min()
+    med = column_data.median()
+    skew = column_data.skew()
+    kurt = column_data.kurt()
+    std = column_data.std()
+    iqr = column_data.quantile(.75) - column_data.quantile(.25)
+    f, p = scipy.signal.periodogram(column_data, 1000)
+#     print(p)
+#     mean_fre = 1000 * scipy.sum(f * p) / (scipy.sum(p)*1000)
+    max_energy_freq = np.nan
+    if p.size != 0 :
+        max_energy_freq = np.asscalar(f[np.argmax(p)])
+
+    mean_freq = np.nan
+    if np.sum(p) != 0:
+        mean_freq = np.average(f, weights=p)
+    
+    median_freq = np.median(p)
+        
+    waveform_length = calculate_waveform_length(column_data)
+    zero_crossing = calculate_zero_crossing(column_data)
+    
+    return [rms, mean, max, min, med, skew, kurt, std, iqr, max_energy_freq, mean_freq, median_freq, waveform_length, zero_crossing]
+
+
+def calculate_waveform_length(column_data):
+    sum = 0
+    for i in range(0, column_data.size - 1):
+        sum += np.abs(column_data[i+1] - column_data[i])
+    return sum
+
+
+def calculate_zero_crossing(column_data):
+    zero_crossing = 0
+    for i in range(0, column_data.size - 1):
+        if ((column_data[i+1]) > 0 and column_data[i] < 0):
+            zero_crossing += 1
+        if ((column_data[i+1]) < 0 and column_data[i] > 0):
+            zero_crossing += 1
+    return zero_crossing
 
 
 def get_new_dir_for_filtered_data(dir):
@@ -256,18 +287,22 @@ def window_and_extract_features(data, subject, file):
                 row_list.extend(features)
             feature_list.append(row_list)
             start = (int)(start + FEATURE_WINDOW_SIZE * (1 - OVERLAP))
-        else:  # if not enough data points in this window, same method to calculate features
+        elif (start + 100 < end):  # if not enough data points in this window, same method to calculate features
             row_list = [subject, trial, load]
-            for channel in [0, 1, 2, 3, 4, 5]:  # x,y,z axis for acc and gyro
+            for channel in [0, 1, 2, 3, 4, 5]:
                 column_data = data.iloc[start:end, channel]
                 features = calculate_features_for_each_column(column_data)
                 row_list.extend(features)
             feature_list.append(row_list)
             break
-    features = pd.DataFrame(feature_list)
-    plot_data(data, "data_for_feature_extraction_S" + str(subject) + "_T" + str(trial) + "_L" + str(load), data.shape[1], subject, trial, load)
-    plot_data(features, "features_S" + str(subject) + "_T" + str(trial) + "_L" + str(load), features.shape[1], subject, trial, load)
-    features.to_csv(get_new_dir_for_features(dir) + file, sep="\t", index=False)
+        else:
+            print("column length is not enough")
+            break
+    if len(feature_list) > 0:
+        features = pd.DataFrame(feature_list)
+        plot_data(data, "data_for_feature_extraction_S" + str(subject) + "_T" + str(trial) + "_L" + str(load), data.shape[1], subject, trial, load)
+        plot_data(features, "features_S" + str(subject) + "_T" + str(trial) + "_L" + str(load), features.shape[1], subject, trial, load)
+        features.to_csv(get_new_dir_for_features(dir) + file, sep="\t", index=False)
     
 
 def feature_extraction(subject):
@@ -277,6 +312,7 @@ def feature_extraction(subject):
     for file in files:
         file_name = labeled_dir + file
         data = pd.read_csv(file_name, sep="\t")
+        data.dropna(inplace=True)
         window_and_extract_features(data, subject, file)
 
 #*****************************************#
@@ -306,7 +342,7 @@ def catenate_feature_from_all_subject():
         data = pd.read_csv(file, sep="\t")
 #         print(data.head(5))
         df = pd.concat([df, data], axis=0, sort=False, ignore_index=True)
-    df.columns = ["Subject", "Trial", "Load", "RMS_BB-EMG", "RMS_TB-EMG", "RMS_BR-EMG", "RMS_AD-EMG", "RMS_LES-EMG", "RMS_TES-EMG"]
+#     df.columns = ["Subject", "Trial", "Load", "RMS_BB-EMG", "RMS_TB-EMG", "RMS_BR-EMG", "RMS_AD-EMG", "RMS_LES-EMG", "RMS_TES-EMG"]
     plot_data(df, "final", df.shape[1], None, None, None)
     df.to_csv(PROCESSED_DIR + "final.features", sep="\t", index=False)
 
@@ -320,8 +356,8 @@ def normalize_data(subject):
     file = feature_dir + "s" + str(subject) + "_all.features"
     data = pd.read_csv(file, sep="\t")
     min_max_scaler = sklearn.preprocessing.MinMaxScaler()
-    data.iloc[:, 3:8] = min_max_scaler.fit_transform(data.iloc[:, 3:8])
-    plot_data(data, "normalized_data_for_S" + str(subject), data.shape[1], subject, None, None)
+    data.iloc[:, 3:] = min_max_scaler.fit_transform(data.iloc[:, 3:])
+    plot_data(data, "normalized_features_for_S" + str(subject), data.shape[1], subject, None, None)
     data.to_csv(feature_dir + "s" + str(subject) + "_all_normalized.features", sep="\t", index=False)
 
 
@@ -330,8 +366,7 @@ def plot_data(data, title, columns, subject, trial, load):
         fig, ax = plt.subplots(columns, 1, dpi=60)
         plt.subplots_adjust(hspace=0.3)
         fig.suptitle(title, size=18)
-        figManager = plt.get_current_fig_manager()
-        figManager.window.showMaximized()
+        fig.set_size_inches(40, 20)
         
         for i in range(0, columns):
             ax[i].plot(data.iloc[:, i], color="C" + str(i % 10), label=data.columns[i])
@@ -339,16 +374,28 @@ def plot_data(data, title, columns, subject, trial, load):
             ax[i].grid()
             
         plt.show()
-#     fig.savefig(save_path)
+#         fig = plt.gcf()
+#         fig.set_size_inches(15, 8)
+#         fig.savefig("C:/Users/Administrator/Desktop/elec811/project/test/" + title + ".png")
 
-    
+
 def KNN(X_train, X_test, y_train, y_test):
+    print("training data shape: ", X_train.shape)
     print("################# KNN #################")
     model = KNeighborsClassifier(n_neighbors=9)
+    
+    scores = sklearn.model_selection.cross_val_score(model, X_train, y_train, cv=KFold(n_splits=10, shuffle=True), scoring='accuracy')
+    print("KNN cross-validation Accuracy: %0.2f" % scores.mean())
+    
     model.fit(X_train, y_train)
     test_predict = model.predict(X_test)
     print("report for KNN: ")
+    report = sklearn.metrics.classification_report(y_test, test_predict, digits=4)
+    print(report)
     print("KNN overall accuracy: " + str(sklearn.metrics.accuracy_score(y_test, test_predict)))
+    print(confusion_matrix(y_test, test_predict))
+
+
 
 
 pd.set_option('display.max_rows', 30)
@@ -396,7 +443,6 @@ for subject in range(1, 6):
 """
 simple min-max normalization, on all the data from the same subject. 
 """
-# normalization
 print("\n ******************** normalizing ********************\n")
 for subject in range(1, 6):
     normalize_data(subject)
@@ -413,8 +459,10 @@ data.dropna(inplace=True)
 
 lab_enc = sklearn.preprocessing.LabelEncoder()
 
-without_labels = data[["RMS_BB-EMG", "RMS_TB-EMG", "RMS_BR-EMG", "RMS_AD-EMG", "RMS_LES-EMG", "RMS_TES-EMG"]]
-labels = lab_enc.fit_transform(data["Load"])
+without_labels = data.iloc[:, 3:]
+labels = lab_enc.fit_transform(data.iloc[:, 2])
+
+print(pd.unique(data.iloc[:, 2]))
 X_train, X_test, y_train, y_test = train_test_split(without_labels, labels, test_size=0.2)
 KNN(X_train, X_test, y_train, y_test)
 
