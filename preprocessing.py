@@ -41,6 +41,7 @@ SAMPLING_FREQUENCY = 1000
 FEATURE_WINDOW_SIZE = 200
 OVERLAP = 0.5  # 50% overlapping sliding window
 
+
 BUTTERWORTH_ORDER = 4
 BANDPASS_LOW_CUTTING_FREQUENCY = 20
 BANDPASS_HIGH_CUTTING_FREQUENCY = 490
@@ -52,31 +53,32 @@ MIN_LENGTH_TO_LABEL = 1000  # only label the consecutive box switch signal longe
 def calculate_features_for_each_column(column_data):
     column_data.reset_index(drop=True, inplace=True)
     rms = np.sqrt(np.mean(column_data ** 2))
-    mean = column_data.mean()
-    max = column_data.max()
-    min = column_data.min()
-    med = column_data.median()
-    skew = column_data.skew()
-    kurt = column_data.kurt()
-    std = column_data.std()
-    iqr = column_data.quantile(.75) - column_data.quantile(.25)
-    f, p = scipy.signal.periodogram(column_data, 1000)
-#     print(p)
-#     mean_fre = 1000 * scipy.sum(f * p) / (scipy.sum(p)*1000)
-    max_energy_freq = np.nan
-    if p.size != 0 :
-        max_energy_freq = np.asscalar(f[np.argmax(p)])
-
-    mean_freq = np.nan
-    if np.sum(p) != 0:
-        mean_freq = np.average(f, weights=p)
-    
-    median_freq = np.median(p)
-        
-    waveform_length = calculate_waveform_length(column_data)
-    zero_crossing = calculate_zero_crossing(column_data)
-    
-    return [rms, mean, max, min, med, skew, kurt, std, iqr, max_energy_freq, mean_freq, median_freq, waveform_length, zero_crossing]
+#     mean = column_data.mean()
+#     max = column_data.max()
+#     min = column_data.min()
+#     med = column_data.median()
+#     skew = column_data.skew()
+#     kurt = column_data.kurt()
+#     std = column_data.std()
+#     iqr = column_data.quantile(.75) - column_data.quantile(.25)
+#     f, p = scipy.signal.periodogram(column_data, 1000)
+# #     print(p)
+# #     mean_fre = 1000 * scipy.sum(f * p) / (scipy.sum(p)*1000)
+#     max_energy_freq = np.nan
+#     if p.size != 0 :
+#         max_energy_freq = np.asscalar(f[np.argmax(p)])
+# 
+#     mean_freq = np.nan
+#     if np.sum(p) != 0:
+#         mean_freq = np.average(f, weights=p)
+#     
+#     median_freq = np.median(p)
+#         
+#     waveform_length = calculate_waveform_length(column_data)
+#     zero_crossing = calculate_zero_crossing(column_data)
+#     
+#     return [rms, mean, max, min, med, skew, kurt, std, iqr, max_energy_freq, mean_freq, median_freq, waveform_length, zero_crossing]
+    return [rms]
 
 
 def calculate_waveform_length(column_data):
@@ -286,7 +288,7 @@ def window_and_extract_features(data, subject, file):
                 features = calculate_features_for_each_column(column_data)
                 row_list.extend(features)
             feature_list.append(row_list)
-            start = (int)(start + FEATURE_WINDOW_SIZE * (1 - OVERLAP))
+            start = (int)(start + 1) #FEATURE_WINDOW_SIZE * (1 - OVERLAP))
         elif (start + 100 < end):  # if not enough data points in this window, same method to calculate features
             row_list = [subject, trial, load]
             for channel in [0, 1, 2, 3, 4, 5]:
